@@ -9,6 +9,7 @@ import ForgotPassword from './pages/ForgotPassword'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import UpdateProfile from './pages/UpdateProfile'
+import Success from './pages/Success';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Route path='/signup' component={Signup} />
             <Route path='/login' component={Login} />
             <Route path='/forgot-password' component={ForgotPassword} />
+            <Route path='/success-password' component={Success} />
           </Switch>
         </AuthProvider>
       </Router>

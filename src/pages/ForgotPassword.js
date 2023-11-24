@@ -1,29 +1,31 @@
-import React, { useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import React, { useRef, useState } from 'react';
+import { Link, useHistory } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export default function ForgotPassword() {
-
-  const emailRef = useRef()
-  const { resetPassword } = useAuth()
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('')
+  const emailRef = useRef();
+  const { resetPassword } = useAuth();
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const history = useHistory();
 
   async function handleSubmit(e) {
     e.preventDefault();
-    
+
     try {
-      setMessage('')
-      setError('')
-      setLoading(true)
-      await resetPassword(emailRef.current.value)
-      setMessage('Checa tu bandeja de entrada y sigue las instrucciones')
+      setMessage('');
+      setError('');
+      setLoading(true);
+      await resetPassword(emailRef.current.value);
+      setMessage('Checa tu bandeja de entrada y sigue las instrucciones');
+      // Redirige a la página con instrucciones
+      history.push('/success-password');
     } catch {
-      setError('Fallo al restaurar tu password')
+      setError('Fallo al restaurar tu password');
     }
 
-    setLoading(false)
+    setLoading(false);
   }
 
   return (
@@ -31,7 +33,8 @@ export default function ForgotPassword() {
       <section className="login">
         <div className="loginContainer">
           <h1>Recuperar contraseña</h1>
-          { error && <h1>{error}</h1> }
+          {error && <h1>{error}</h1>}
+          {message && <p>{message}</p>}
           <form onSubmit={handleSubmit}>
             <label>Email</label>
             <input
@@ -48,5 +51,5 @@ export default function ForgotPassword() {
         </div>
       </section>
     </div>
-  )
+  );
 }

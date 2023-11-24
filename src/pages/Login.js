@@ -20,7 +20,7 @@ export default function Login() {
       await login(emailRef.current.value, passwordRef.current.value)
       history.push('/dashboard')
     } catch {
-      setError('Fallo al crear la cuenta')
+      setError('Usuario o contraseña no validas')
     }
     
     setLoading(false)
