@@ -31,6 +31,7 @@ export default function ForgotPassword() {
   return (
     <div>
       <section className="login">
+        <h1>Etiqueta</h1>
         <div className="loginContainer">
           <h1>Recuperar contraseña</h1>
           {error && <h1>{error}</h1>}
