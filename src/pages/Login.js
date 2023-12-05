@@ -13,12 +13,18 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-
+    let user;
     try {
       setError('')
       setLoading(true)
-      await login(emailRef.current.value, passwordRef.current.value)
-      history.push('/dashboard')
+      user = await login(emailRef.current.value, passwordRef.current.value)
+      if(!user.emailVerified){
+        history.push('/verificar-correo')
+      }
+      else{
+        history.push('/dashboard')
+      }
+      
     } catch {
       setError('Usuario o contraseña no validas')
     }

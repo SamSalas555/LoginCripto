@@ -18,7 +18,7 @@ export default function Signup() {
       setError('')
       setLoading(true)
       await signup(emailRef.current.value, passwordRef.current.value)
-      history.push('/dashboard')
+      history.push('/verificar-correo')
     } catch {
       setError('Fallo al crear la cuenta')
     }
