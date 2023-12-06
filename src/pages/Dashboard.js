@@ -1,10 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react';
 import { Link, useHistory } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Card, Button } from 'react-bootstrap'; 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import pdfMake from 'pdfmake/build/pdfmake'; // Importa pdfMake
 import pdfFonts from 'pdfmake/build/vfs_fonts'; // Importa los fonts
+import forge from 'node-forge';
+
 
 // Asigna los fonts a pdfMake
 pdfMake.vfs = pdfFonts.pdfMake.vfs;
@@ -14,6 +16,22 @@ export default function Dashboard() {
   const [error, setError] = useState('')
   const { currentUser, logout } = useAuth()
   const history = useHistory()
+
+
+  const [publicKey, setPublicKey] = useState('');
+  const [privateKey, setPrivateKey] = useState('');
+
+  function generateKeys() {
+    const keys = forge.pki.rsa.generateKeyPair({ bits: 2048 });
+    const publicKeyPem = forge.pki.publicKeyToPem(keys.publicKey);
+    const privateKeyPem = forge.pki.privateKeyToPem(keys.privateKey);
+    
+    setPublicKey(publicKeyPem);
+    setPrivateKey(privateKeyPem);
+
+    console.log('Public Key:', publicKeyPem);
+    console.log('Private Key:', privateKeyPem);
+  }
 
   async function handleLogout() {
     setError('')
@@ -25,23 +43,7 @@ export default function Dashboard() {
       setError('Hubo un fallo al salir')
     }
   }
-
-   // Función para generar el PDF
-   function generatePDF() {
-    const loremIpsumText =
-      'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.';
-
-    // Definir la estructura del documento con estilos
-    const documentDefinition = {
-      content: [
-        { text: 'Documento Personalizado', fontSize: 18, bold: true, margin: [0, 0, 0, 10] },
-        { text: loremIpsumText, fontSize: 12, margin: [0, 0, 0, 10] },
-      ],
-    };
-
-    // Generar el documento PDF y abrirlo
-    pdfMake.createPdf(documentDefinition).open();
-  }
+  
   return (
     <div className="hero">
       <nav>
@@ -99,14 +101,14 @@ export default function Dashboard() {
          <Button
           type="button"
           className="mx-auto d-block w-30 btn-lg btn-outline-primary"
-          id="generate-pdf-button"
-          onClick={generatePDF}
-           // Agregar la función al hacer clic
+          id="generate-keys"
+          onClick={generateKeys}
         >
-          Genera un documento
+          Genera llaves
         </Button>
       </main>
       </div>
     </div>
   );
+
   }
