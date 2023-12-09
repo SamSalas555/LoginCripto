@@ -5,6 +5,10 @@
   font-family: 'Poppins', sans-serif;
 }
 
+.keys {
+  color: #fff;
+}
+
 button {
   border: none;
   outline: none;

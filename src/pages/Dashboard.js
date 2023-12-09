@@ -6,6 +6,18 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import pdfMake from 'pdfmake/build/pdfmake'; // Importa pdfMake
 import pdfFonts from 'pdfmake/build/vfs_fonts'; // Importa los fonts
 import forge from 'node-forge';
+import app, {appli} from '../config/firebase'
+
+// Import Admin SDK
+import { getDatabase } from 'https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js';
+
+// Get a database reference to our blog
+const db = getDatabase(appli);
+const ref = db.ref('users')
+
+
+
+
 
 
 // Asigna los fonts a pdfMake
@@ -17,7 +29,7 @@ export default function Dashboard() {
   const { currentUser, logout } = useAuth()
   const history = useHistory()
 
-
+  const [publick, setPublick] = useState('');
   const [publicKey, setPublicKey] = useState('');
   const [privateKey, setPrivateKey] = useState('');
 
@@ -31,6 +43,24 @@ export default function Dashboard() {
 
     console.log('Public Key:', publicKeyPem);
     console.log('Private Key:', privateKeyPem);
+    const usuario = currentUser.uid;
+    ref.child(usuario).set({
+      publicKey: publicKeyPem ,
+      privateKey: privateKeyPem
+    });}
+
+
+    function showKey() {
+    var userRef = db.ref('users/' + currentUser.uid);
+    userRef.on('value', function(snapshot) {
+    // Recupera los datos del usuario
+    var usuario = snapshot.val();
+    console.log(usuario)
+    // Accede al valor específico que deseas, por ejemplo, el nombre
+    var publicks = usuario.publicKey;
+    console.log(publick)
+    setPublick(publicks);
+  });
   }
 
   async function handleLogout() {
@@ -100,15 +130,24 @@ export default function Dashboard() {
         </div>
          <Button
           type="button"
-          className="mx-auto d-block w-30 btn-lg btn-outline-primary"
+          className="w-100 btn-lg btn-custom"
           id="generate-keys"
           onClick={generateKeys}
         >
           Genera llaves
         </Button>
+        <Button
+          type="button"
+          className="w-100 btn-lg btn-custom"
+          id="generate-keys"
+          onClick={showKey}
+        >
+          Muestra llaves
+        </Button>
       </main>
+      <p className='keys  '>{publick}</p>
       </div>
     </div>
   );
 
-  }
+}
