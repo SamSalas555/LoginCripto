@@ -6,18 +6,6 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import pdfMake from 'pdfmake/build/pdfmake'; // Importa pdfMake
 import pdfFonts from 'pdfmake/build/vfs_fonts'; // Importa los fonts
 import forge from 'node-forge';
-import app, {appli} from '../config/firebase'
-
-// Import Admin SDK
-import { getDatabase } from 'https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js';
-
-// Get a database reference to our blog
-const db = getDatabase(appli);
-const ref = db.ref('users')
-
-
-
-
 
 
 // Asigna los fonts a pdfMake
@@ -29,14 +17,14 @@ export default function Dashboard() {
   const { currentUser, logout } = useAuth()
   const history = useHistory()
 
-  const [publick, setPublick] = useState('');
+
   const [publicKey, setPublicKey] = useState('');
   const [privateKey, setPrivateKey] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [signature, setSignature] = useState('');
   const [verificationPublicKeyFile, setVerificationPublicKeyFile] = useState(null);
-
-
+  const [fileForVerification, setFileForVerification] = useState(null);
+ 
   useEffect(() => {
     // Generar llaves al cargar la página
     generateKeys();
@@ -51,9 +39,17 @@ export default function Dashboard() {
     setPrivateKey(privateKeyPem);
 
     localStorage.setItem('privateKey', privateKeyPem); 
-    //localStorage.setItem('privateKey', privateKeyPem); 
+    localStorage.setItem('publicKey', publicKeyPem);
     console.log('Public Key:', publicKeyPem);
     console.log('Private Key:', privateKeyPem);
+
+    const publicKeyBlob = new Blob([publicKeyPem], { type: 'text/plain' });
+
+   // Crear un enlace de descarga
+   const link = document.createElement('a');
+   link.href = URL.createObjectURL(publicKeyBlob);
+    link.download = 'llave_publica.pem'; // Nombre del archivo descargado
+    link.click(); // Simular clic en el enlace para descargar
   }
 
   async function handleLogout() {
@@ -68,14 +64,23 @@ export default function Dashboard() {
   }
 
 
-  function handleFileSelection(event) {
+ 
+  function handleFileSelectionForSigning(event) {
     setSelectedFile(event.target.files[0]);
   }
 
-  function handleVerificationKeySelection(event) {
-    setVerificationPublicKeyFile(event.target.files[0]);
+  function handleFileSelectionForVerification(event) {
+    const file = event.target.files[0];
+    console.log('Archivo seleccionado para verificación:', file);
+    setFileForVerification(file);
   }
-
+  
+  function handleVerificationKeySelection(event) {
+    const keyFile = event.target.files[0];
+    console.log('Archivo de clave pública seleccionado:', keyFile);
+    setVerificationPublicKeyFile(keyFile);
+  }
+  
 
   function signFile() {
     if (!selectedFile || !publicKey) {
@@ -89,30 +94,34 @@ export default function Dashboard() {
   
       const md = forge.md.sha256.create();
       md.update(fileContents, 'utf8');
-      console.log("Hash antes de firmar", md.getBytes);
+      const fileHash = md.digest().getBytes();
+      var encodeFileHash = forge.util.encode64(fileHash);
+
+      console.log('Hash del archivo:', fileHash);
+      console.log("hash decode: ", encodeFileHash);
   
-      const privateKey = forge.pki.privateKeyFromPem(localStorage.getItem('privateKey')); // Obtener la clave privada
-  
-      const signature = privateKey.sign(md); // Firmar el contenido del archivo
+      const storedPrivateKey = localStorage.getItem('privateKey');
+      console.log('Clave privada almacenada:', storedPrivateKey);
+      const privateKey = forge.pki.privateKeyFromPem(storedPrivateKey);
+      var signature = privateKey.sign(md); // Firmar el contenido del archivo
+      signature = forge.util.encode64(signature);
+      console.log('FIRMA generada en signFile:', signature);
+      console.log('tamaño de firma:', signature.length);
   
       // Crear un Blob con el contenido original y la firma al final, incluyendo delimitadores
-      const signedContent = fileContents + '\n\n-----BEGIN SIGNATURE-----\n' + signature + '\n-----END SIGNATURE-----\n';
+      const signedContent = fileContents +  signature;
       const signedBlob = new Blob([signedContent], { type: 'text/plain' });
   
       const link = document.createElement('a');
       link.href = URL.createObjectURL(signedBlob); // Establecer el Blob como el enlace de descarga
       link.download = 'archivo_firmado.txt'; // Nombre del archivo descargado
       link.click(); // Simular clic en el enlace para descargar
-  
-      console.log('FIRMA1:', signature);
     };
     reader.readAsText(selectedFile);
   }
-  
 
-  //-**************VERIFICAR*********
   function verifySignature() {
-    if (!selectedFile || !verificationPublicKeyFile) {
+    if (!fileForVerification || !verificationPublicKeyFile) {
       console.error('Seleccione un archivo y cargue el archivo de llave pública para verificar.');
       return;
     }
@@ -121,32 +130,26 @@ export default function Dashboard() {
     reader.onload = function () {
       const fileContents = reader.result;
   
-      const parts = fileContents.split('\n\n-----BEGIN SIGNATURE-----\n');
-      if (parts.length !== 2) {
-        console.error('El archivo no contiene una firma válida.');
-        return;
-      }
-  
-      const fileData = parts[0];
-      console.log(`contenido: ${fileData}}`);
-      const signature = parts[1].replace('-----END SIGNATURE-----\n', '');
-      console.log(`firma: ${signature}`);
+     var plaintext = fileContents.slice(0,fileContents.length-345);
+     console.log("Plaintext:",plaintext);
+     var signature = fileContents.slice(fileContents.length-344, fileContents.length);
+     console.log("Signature:",signature);
 
       const publicKeyReader = new FileReader();
       publicKeyReader.onload = function () {
         const publicKeyContents = publicKeyReader.result;
-        console.log(`llave pub: ${publicKeyContents}`);
-
-        const keys = forge.pki.publicKeyFromPem(publicKeyContents);
-        
-
-        const md = forge.md.sha256.create();
-        md.update(fileData, 'utf8');
-        const fileHash = md.digest().getBytes();
-        console.log('Hash del contenido:', fileHash);
-
+        console.log('Contenido de la clave pública:', publicKeyContents);
   
-        const isValid = keys.verify(fileHash, signature);
+        const publicKey = forge.pki.publicKeyFromPem(publicKeyContents);
+  
+        const md = forge.md.sha256.create();
+        md.update(plaintext, 'utf8');
+        const fileHash = md.digest().getBytes();
+        const encodeFileHash = forge.util.encode64(fileHash);
+        console.log('Hash del contenido:', fileHash);
+        console.log('encode Hash del contenido:', encodeFileHash);
+  
+        const isValid = publicKey.verify(fileHash, signature);
         console.log('La firma es válida:', isValid);
         if (isValid) {
           alert('La firma es válida.');
@@ -156,11 +159,10 @@ export default function Dashboard() {
       };
       publicKeyReader.readAsText(verificationPublicKeyFile);
     };
-    reader.readAsText(selectedFile);
+    reader.readAsText(fileForVerification);
   }
   
 
-  
   return (
     <div className="hero">
       <nav>
@@ -214,9 +216,9 @@ export default function Dashboard() {
               </Card.Body>
             </Card>
           </div>
-        <input type="file" onChange={handleFileSelection} />
+        <input type="file" onChange={handleFileSelectionForSigning} />
         </div>
-        <Button
+         <Button
           type="button"
           className="mx-auto d-block w-30 btn-lg btn-outline-primary"
           id="sign-txt"
@@ -224,14 +226,16 @@ export default function Dashboard() {
         >
           Generar archivo firmado
         </Button>
-       <input type="file" onChange={handleFileSelection} />
+
+   
+       <input type="file" onChange={handleFileSelectionForVerification} />
        <input type="file" onChange={handleVerificationKeySelection} />
         <Button onClick={verifySignature}>Verificar Firma</Button>
     
+
       </main>
-      <p className='keys  '>{publick}</p>
       </div>
     </div>
   );
 
-}
+  }
