@@ -90,26 +90,29 @@ export default function Dashboard() {
   
     const reader = new FileReader();
     reader.onload = function () {
-      const fileContents = reader.result;
-  
-      const md = forge.md.sha256.create();
-      md.update(fileContents, 'utf8');
-      const fileHash = md.digest().getBytes();
-      var encodeFileHash = forge.util.encode64(fileHash);
-
-      console.log('Hash del archivo:', fileHash);
-      console.log("hash decode: ", encodeFileHash);
-  
+      const fileContents = reader.result; //contenido
+      //hash del contenido
       const storedPrivateKey = localStorage.getItem('privateKey');
       console.log('Clave privada almacenada:', storedPrivateKey);
       const privateKey = forge.pki.privateKeyFromPem(storedPrivateKey);
+      const md = forge.md.sha256.create();
+      md.update(fileContents, 'utf8');
+      
       var signature = privateKey.sign(md); // Firmar el contenido del archivo
+      console.log("Mensaje original: " + fileContents);
+      console.log("Digesto: "); //agregar el digesto del contenido
+
+      //const fileHash = md.digest().getBytes();
+
       signature = forge.util.encode64(signature);
-      console.log('FIRMA generada en signFile:', signature);
+      console.log("Firma: " + signature);
       console.log('tamaño de firma:', signature.length);
   
+      
+      
+  
       // Crear un Blob con el contenido original y la firma al final, incluyendo delimitadores
-      const signedContent = fileContents +  signature;
+      const signedContent = fileContents + "\n" + signature;
       const signedBlob = new Blob([signedContent], { type: 'text/plain' });
   
       const link = document.createElement('a');
@@ -138,18 +141,20 @@ export default function Dashboard() {
       const publicKeyReader = new FileReader();
       publicKeyReader.onload = function () {
         const publicKeyContents = publicKeyReader.result;
+        const publicKey = forge.pki.publicKeyFromPem(publicKeyContents);
         console.log('Contenido de la clave pública:', publicKeyContents);
   
-        const publicKey = forge.pki.publicKeyFromPem(publicKeyContents);
   
         const md = forge.md.sha256.create();
         md.update(plaintext, 'utf8');
+
+        var firma = forge.util.decode64(signature);
         const fileHash = md.digest().getBytes();
         const encodeFileHash = forge.util.encode64(fileHash);
         console.log('Hash del contenido:', fileHash);
         console.log('encode Hash del contenido:', encodeFileHash);
   
-        const isValid = publicKey.verify(fileHash, signature);
+        const isValid = publicKey.verify(fileHash, firma);
         console.log('La firma es válida:', isValid);
         if (isValid) {
           alert('La firma es válida.');
