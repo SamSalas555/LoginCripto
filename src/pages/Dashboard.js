@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useHistory } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Card, Button } from 'react-bootstrap'; 
 import 'bootstrap/dist/css/bootstrap.min.css';
 import pdfMake from 'pdfmake/build/pdfmake'; // Importa pdfMake
 import pdfFonts from 'pdfmake/build/vfs_fonts'; // Importa los fonts
 import forge from 'node-forge';
+import { Container, Row, Col, Form, Button , Card} from 'react-bootstrap';
+import  {db} from '../config/firebase'
+
+
+// Get a database reference to our blog
+const ref = db.ref('users')
+
+
 
 
 // Asigna los fonts a pdfMake
@@ -17,7 +24,7 @@ export default function Dashboard() {
   const { currentUser, logout } = useAuth()
   const history = useHistory()
 
-
+  const [publick, setPublick] = useState('');
   const [publicKey, setPublicKey] = useState('');
   const [privateKey, setPrivateKey] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
@@ -27,8 +34,27 @@ export default function Dashboard() {
  
   useEffect(() => {
     // Generar llaves al cargar la página
-    generateKeys();
+    checkKeysExistence();
   }, []);
+
+  function checkKeysExistence() {
+    const usuario = currentUser.uid;
+
+    // Retrieve the user's data from Firebase
+    ref.child(usuario).once('value', (snapshot) => {
+      const userData = snapshot.val();
+
+      if (!userData || !userData.publicKey || !userData.privateKey) {
+        // Keys don't exist, generate and save new keys
+        generateKeys();
+      } else {
+        // Keys already exist, set them in your component state
+        
+        setPublicKey(userData.publicKey);
+        setPrivateKey(userData.privateKey);
+      }
+    });
+  }
 
   function generateKeys() {
     const keys = forge.pki.rsa.generateKeyPair({ bits: 2048 });
@@ -38,19 +64,43 @@ export default function Dashboard() {
     setPublicKey(publicKeyPem);
     setPrivateKey(privateKeyPem);
 
-    localStorage.setItem('privateKey', privateKeyPem); 
-    localStorage.setItem('publicKey', publicKeyPem);
     console.log('Public Key:', publicKeyPem);
     console.log('Private Key:', privateKeyPem);
+    const usuario = currentUser.uid;
+    ref.child(usuario).set({
+      publicKey: publicKeyPem ,
+      privateKey: privateKeyPem
+    });}
 
-    const publicKeyBlob = new Blob([publicKeyPem], { type: 'text/plain' });
 
-   // Crear un enlace de descarga
-   const link = document.createElement('a');
-   link.href = URL.createObjectURL(publicKeyBlob);
-    link.download = 'llave_publica.pem'; // Nombre del archivo descargado
-    link.click(); // Simular clic en el enlace para descargar
-  }
+    function showKey() {
+      var userRef = db.ref('users/' + currentUser.uid);
+      
+      userRef.on('value', function(snapshot) {
+        // Recupera los datos del usuario
+        var usuario = snapshot.val();
+        console.log(usuario);
+    
+        // Accede al valor específico que deseas, por ejemplo, la clave pública
+        const publick = usuario.publicKey; // Replace with your actual property name
+        
+        // Create a Blob containing the public key
+        const publicKeyBlob = new Blob([publick], { type: 'text/plain' });
+    
+        // Display the public key
+        setPublick(publick);
+    
+        // Create a download link
+        const downloadLink = document.createElement('a');
+        downloadLink.href = URL.createObjectURL(publicKeyBlob);
+        downloadLink.download = 'public_key.pem';
+        downloadLink.textContent = 'Download Public Key';
+    
+        // Append the link to the document
+        document.body.appendChild(downloadLink);
+      });
+    }
+  
 
   async function handleLogout() {
     setError('')
@@ -92,13 +142,12 @@ export default function Dashboard() {
     reader.onload = function () {
       const fileContents = reader.result; //contenido
       //hash del contenido
-      const storedPrivateKey = localStorage.getItem('privateKey');
-      console.log('Clave privada almacenada:', storedPrivateKey);
-      const privateKey = forge.pki.privateKeyFromPem(storedPrivateKey);
+      console.log('Clave privada almacenada:', privateKey);
+      const privateKeyp = forge.pki.privateKeyFromPem(privateKey);
       const md = forge.md.sha256.create();
       md.update(fileContents, 'utf8');
       
-      var signature = privateKey.sign(md); // Firmar el contenido del archivo
+      var signature = privateKeyp.sign(md); // Firmar el contenido del archivo
       console.log("Mensaje original: " + fileContents);
       console.log("Digesto: "); //agregar el digesto del contenido
 
@@ -221,21 +270,58 @@ export default function Dashboard() {
               </Card.Body>
             </Card>
           </div>
-        <input type="file" onChange={handleFileSelectionForSigning} />
         </div>
-         <Button
+        <Container>
+              {/* Sección para firmar archivo */}
+      <Row className="mb-3">
+        <Col>
+          <Form.Group controlId="formFile" className="mb-3 keys">
+            <Form.Label>Archivo a Firmar</Form.Label>
+            <Form.Control type="file" onChange={handleFileSelectionForSigning} />
+          </Form.Group>
+        </Col>
+        <Col className="text-center">
+          <Button
+            type="button"
+            className="align-middle buttonssd" 
+            onClick={signFile}
+          >
+            Generar Archivo Firmado
+          </Button>
+        </Col>
+      </Row>
+       <Button
           type="button"
-          className="mx-auto d-block w-30 btn-lg btn-outline-primary"
-          id="sign-txt"
-          onClick={signFile}
+          className="w-100 btn-lg btn-custom"
+          id="generate-keys"
+          onClick={showKey}
         >
-          Generar archivo firmado
+          Muestra llaves
         </Button>
+        <p className='keys'
+        >{publick}</p>
 
-   
-       <input type="file" onChange={handleFileSelectionForVerification} />
-       <input type="file" onChange={handleVerificationKeySelection} />
-        <Button onClick={verifySignature}>Verificar Firma</Button>
+      {/* Sección para verificar firma */}
+      <Row className="mb-3">
+        <Col>
+          <Form.Group controlId="formFile" className="mb-3 keys ">
+            <Form.Label>Archivo Firmado a Verificar</Form.Label>
+            <Form.Control type="file" onChange={handleFileSelectionForVerification} />
+          </Form.Group>
+        </Col>
+        <Col>
+          <Form.Group controlId="formFile" className="mb-3 keys">
+            <Form.Label>Llave Pública</Form.Label>
+            <Form.Control type="file" onChange={handleVerificationKeySelection} />
+          </Form.Group>
+        </Col>
+        <Col className="text-center mb-3 align-middle">
+          <Button
+          className="align-middle buttonssd" 
+          onClick={verifySignature}>Verificar Firma</Button>
+        </Col>
+      </Row>
+    </Container>
     
 
       </main>
