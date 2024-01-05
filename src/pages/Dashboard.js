@@ -141,32 +141,54 @@ export default function Dashboard() {
     const reader = new FileReader();
     reader.onload = function () {
       const fileContents = reader.result; //contenido
-      //hash del contenido
+     
+      // ***************Generar una clave AES de 128bits y un IV aleatorio***********
+      const asKey = forge.random.getBytesSync(16);
+      const iv = forge.random.getBytesSync(16);
+
+      //Crear el cifrador AES en modo CBC
+      const cipher = forge.cipher.createCipher('AES-CBC', asKey);
+      cipher.start({iv});
+      cipher.update(forge.util.createBuffer(fileContents,'utf8'));
+      cipher.finish();
+      const encrypted = cipher.output.getBytes();
+
+      //HASH DEL CONTENIDO CIFRADO
+      const privateKeyp = forge.pki.privateKeyFromPem(privateKey);
+      const md = forge.md.sha256.create();
+      md.update(encrypted, 'utf8');
+
+      //Firmar el contenido cifrado utilizando la clave privada
+      var signature = privateKeyp.sign(md);
+      // ******************************************************************************
+
+     /* //HASH DEL CONTENIDO
       console.log('Clave privada almacenada:', privateKey);
       const privateKeyp = forge.pki.privateKeyFromPem(privateKey);
       const md = forge.md.sha256.create();
       md.update(fileContents, 'utf8');
       
-      var signature = privateKeyp.sign(md); // Firmar el contenido del archivo
+      var signature = privateKeyp.sign(md); // Firmar el contenido del archivo*/
       console.log("Mensaje original: " + fileContents);
       console.log("Digesto: "); //agregar el digesto del contenido
 
-      //const fileHash = md.digest().getBytes();
-
+      // **************CODIFICAR FIRMA Y EL CONTENIDO CIFRADO ************************
       signature = forge.util.encode64(signature);
+      const encodedEncrypted = forge.util.encode64(encrypted);
+      // ******************************************************************************
+      //signature = forge.util.encode64(signature);
       console.log("Firma: " + signature);
       console.log('tamaño de firma:', signature.length);
+     
   
-      
-      
-  
-      // Crear un Blob con el contenido original y la firma al final, incluyendo delimitadores
-      const signedContent = fileContents + "\n" + signature;
+    // Crear un Blob con el contenido original y la firma al final, incluyendo delimitadores
+      const signedContent = encodedEncrypted + "\n" + signature;
+    // const signedContent = fileContents + "\n" + signature;
       const signedBlob = new Blob([signedContent], { type: 'text/plain' });
   
       const link = document.createElement('a');
       link.href = URL.createObjectURL(signedBlob); // Establecer el Blob como el enlace de descarga
-      link.download = 'archivo_firmado.txt'; // Nombre del archivo descargado
+      link.download = 'archivo_firmado_cifrado.txt'; // Nombre del archivo descargado
       link.click(); // Simular clic en el enlace para descargar
     };
     reader.readAsText(selectedFile);
@@ -202,15 +224,20 @@ export default function Dashboard() {
         const encodeFileHash = forge.util.encode64(fileHash);
         console.log('Hash del contenido:', fileHash);
         console.log('encode Hash del contenido:', encodeFileHash);
+        try{        
+                const isValid = publicKey.verify(fileHash, firma);
+                console.log('La firma es válida:', isValid);
+                  if (isValid) {
+                    alert('La firma es válida.');      
+                   } else {         
+                    alert('La firma no es válida.');    
+                  }     
+              }catch{
+                alert('La firma no es válida.'); 
+              }
+        };
   
-        const isValid = publicKey.verify(fileHash, firma);
-        console.log('La firma es válida:', isValid);
-        if (isValid) {
-          alert('La firma es válida.');
-        } else {
-          alert('La firma no es válida.');
-        }
-      };
+       
       publicKeyReader.readAsText(verificationPublicKeyFile);
     };
     reader.readAsText(fileForVerification);
