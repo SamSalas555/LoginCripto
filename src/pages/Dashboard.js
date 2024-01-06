@@ -213,78 +213,6 @@ export default function Dashboard() {
     };
     reader.readAsText(selectedFile);
   }
-/*
-  function verifySignature() {
-    if (!fileForVerification || !verificationPublicKeyFile) {
-      console.error('Seleccione los archivos necesarios para la verificación de la firma.');
-      return;
-    }
-  
-    const reader = new FileReader();
-    reader.onload = function () {
-      const fileContents = reader.result;
-  
-      // Separar las secciones del archivo cifrado
-      const sections = fileContents.split('\n');
-  
-      const encodedEncryptedAesKey = sections[0];
-      const encodedEncryptedIV = sections[1];
-      const encodedEncrypted = sections[2];
-      const signature = sections[3];
-      /*console.log("firma en verificacion: ", signature);
-      console.log("Contenido verifica: ", encodedEncrypted);
-      console.log("AES key verifica: ", encodedEncryptedAesKey);
-      console.log("IV verifica: ", encodedEncryptedIV);
-  
-      // Decodificar la firma y el texto cifrado
-      const decodedSignature = forge.util.decode64(signature);
-      const encrypted = forge.util.decode64(encodedEncrypted);
-      const privateKeyA = forge.pki.privateKeyFromPem(privateKey);
-  
-        // Descifrar la aesKey y el IV utilizando RSA
-      const aesKey = privateKeyA.decrypt(forge.util.decode64(encodedEncryptedAesKey), 'RSA-OAEP');
-      const iv = privateKeyA.decrypt(forge.util.decode64(encodedEncryptedIV), 'RSA-OAEP');
-      console.log("aes key descifrada: ", aesKey);
-      console.log("iv descrifrada: ", iv);
-        // Crear un descifrador AES en modo CBC
-      const decipher = forge.cipher.createDecipher('AES-CBC', aesKey);
-      decipher.start({ iv });
-      decipher.update(forge.util.createBuffer(encrypted));
-      decipher.finish();
-      const decrypted = decipher.output.getBytes();
-      console.log("contenido descifrada: ", decrypted);
-        // Leer la clave pública para la verificación de la firma
-      const publicKeyReader = new FileReader();
-      publicKeyReader.onload = function () {
-        const publicKeyContents = publicKeyReader.result;
-        const publicKey = forge.pki.publicKeyFromPem(publicKeyContents);
-  
-          // Verificar la firma del contenido descifrado
-        const md = forge.md.sha256.create();
-        //modique esto en vez de decrypted para que coincida la hash
-        md.update(encrypted, 'utf8');
-        const fileHash = md.digest().getBytes();
-        const decryptedHash = md.digest().toHex();
-        console.log('Digesto del contenido descifrado:', decryptedHash);
-  
-        try {
-          const isValid = publicKey.verify(fileHash, decodedSignature);
-          console.log('La firma es válida:', isValid);
-          if (isValid) {
-            alert('La firma es válida.');
-          } else {
-            alert('La firma no es válida.');
-          }
-        } catch {
-          alert('La firma no es válida.');
-        }
-
-      };
-      publicKeyReader.readAsText(verificationPublicKeyFile);
-    };
-  
-    reader.readAsText(fileForVerification);
-  }*/
   
   
   function verifySignature() {
@@ -352,12 +280,13 @@ export default function Dashboard() {
         publicKeyReader.readAsText(verificationPublicKeyFile);
       } catch (error) {
         console.error('Error:', error.message);
-        alert('Este contenido no es para ti');
+        alert('El contenido de ha sido alterado');
       }
     };
   
     reader.readAsText(fileForVerification);
   }
+  
   
   return (
     <div className="hero">
