@@ -213,7 +213,7 @@ export default function Dashboard() {
     };
     reader.readAsText(selectedFile);
   }
-
+/*
   function verifySignature() {
     if (!fileForVerification || !verificationPublicKeyFile) {
       console.error('Seleccione los archivos necesarios para la verificación de la firma.');
@@ -234,7 +234,7 @@ export default function Dashboard() {
       /*console.log("firma en verificacion: ", signature);
       console.log("Contenido verifica: ", encodedEncrypted);
       console.log("AES key verifica: ", encodedEncryptedAesKey);
-      console.log("IV verifica: ", encodedEncryptedIV);*/
+      console.log("IV verifica: ", encodedEncryptedIV);
   
       // Decodificar la firma y el texto cifrado
       const decodedSignature = forge.util.decode64(signature);
@@ -284,10 +284,81 @@ export default function Dashboard() {
     };
   
     reader.readAsText(fileForVerification);
+  }*/
+  
+  
+  function verifySignature() {
+    if (!fileForVerification || !verificationPublicKeyFile) {
+      console.error('Seleccione los archivos necesarios para la verificación de la firma.');
+      return;
+    }
+  
+    const reader = new FileReader();
+    reader.onload = function () {
+      const fileContents = reader.result;
+  
+      const sections = fileContents.split('\n');
+  
+      const encodedEncryptedAesKey = sections[0];
+      const encodedEncryptedIV = sections[1];
+      const encodedEncrypted = sections[2];
+      const signature = sections[3];
+  
+      const decodedSignature = forge.util.decode64(signature);
+      const encrypted = forge.util.decode64(encodedEncrypted);
+      const privateKeyA = forge.pki.privateKeyFromPem(privateKey);
+  
+      try {
+        const aesKey = privateKeyA.decrypt(forge.util.decode64(encodedEncryptedAesKey), 'RSA-OAEP');
+        const iv = privateKeyA.decrypt(forge.util.decode64(encodedEncryptedIV), 'RSA-OAEP');
+  
+        if (!aesKey || !iv) {
+          throw new Error('No se pudo realizar la desencriptación RSA');
+        }
+  
+        const decipher = forge.cipher.createDecipher('AES-CBC', aesKey);
+        decipher.start({ iv });
+        decipher.update(forge.util.createBuffer(encrypted));
+        decipher.finish();
+        const decrypted = decipher.output.getBytes();
+  
+        const publicKeyReader = new FileReader();
+        publicKeyReader.onload = function () {
+          const publicKeyContents = publicKeyReader.result;
+          const publicKey = forge.pki.publicKeyFromPem(publicKeyContents);
+  
+          const md = forge.md.sha256.create();
+          md.update(encrypted, 'utf8');
+          const fileHash = md.digest().getBytes();
+  
+          try {
+            const isValid = publicKey.verify(fileHash, decodedSignature);
+            if (isValid) {
+              //alert('La firma es válida.');
+              const verifiedFileContent = `${forge.util.encode64(aesKey)}\n${forge.util.encode64(iv)}\n${decrypted}\n${signature}`;
+              const verifiedBlob = new Blob([verifiedFileContent], { type: 'text/plain' });
+              const link = document.createElement('a');
+              link.href = URL.createObjectURL(verifiedBlob);
+              link.download = 'archivo_verificado.txt';
+              link.click();
+              alert('La firma es válida. Archivo verificado descargado.');
+            } else {
+              alert('La firma no es válida.');
+            }
+          } catch {
+            alert('La firma no es válida.');
+          }
+        };
+        publicKeyReader.readAsText(verificationPublicKeyFile);
+      } catch (error) {
+        console.error('Error:', error.message);
+        alert('Este contenido no es para ti');
+      }
+    };
+  
+    reader.readAsText(fileForVerification);
   }
   
-  
-
   return (
     <div className="hero">
       <nav>
