@@ -169,7 +169,7 @@ export default function Dashboard() {
         const publicKeyReceiverObj = forge.pki.publicKeyFromPem(publicKeyReceiverContents);
 
       // Cifrar la clave AES y el IV con RSA
-        const encryptedAesKey = publicKeyReceiverObj.encrypt(aesKey, 'RSA-OAEP');
+        const encryptedAesKey = publicKeyReceiverObj.encrypt(asKey, 'RSA-OAEP');
         const encryptedIV = publicKeyReceiverObj.encrypt(iv, 'RSA-OAEP');
 
 
@@ -225,56 +225,8 @@ export default function Dashboard() {
     reader.readAsText(selectedFile);
   }
 
-  /*function verifySignature() {
-    if (!fileForVerification || !verificationPublicKeyFile) {
-      console.error('Seleccione un archivo y cargue el archivo de llave pública para verificar.');
-      return;
-    }
-  
-    const reader = new FileReader();
-    reader.onload = function () {
-      const fileContents = reader.result;
-  
-     var plaintext = fileContents.slice(0,fileContents.length-345);
-     console.log("Plaintext:",plaintext);
-     var signature = fileContents.slice(fileContents.length-344, fileContents.length);
-     console.log("Signature:",signature);
-
-      const publicKeyReader = new FileReader();
-      publicKeyReader.onload = function () {
-        const publicKeyContents = publicKeyReader.result;
-        const publicKey = forge.pki.publicKeyFromPem(publicKeyContents);
-        console.log('Contenido de la clave pública:', publicKeyContents);
-  
-  
-        const md = forge.md.sha256.create();
-        md.update(plaintext, 'utf8');
-
-        var firma = forge.util.decode64(signature);
-        const fileHash = md.digest().getBytes();
-        const encodeFileHash = forge.util.encode64(fileHash);
-        console.log('Hash del contenido:', fileHash);
-        console.log('encode Hash del contenido:', encodeFileHash);
-        try{        
-                const isValid = publicKey.verify(fileHash, firma);
-                console.log('La firma es válida:', isValid);
-                  if (isValid) {
-                    alert('La firma es válida.');      
-                   } else {         
-                    alert('La firma no es válida.');    
-                  }     
-              }catch{
-                alert('La firma no es válida.'); 
-              }
-        };
-  
-       
-      publicKeyReader.readAsText(verificationPublicKeyFile);
-    };
-    reader.readAsText(fileForVerification);
-  }*/
   function verifySignature() {
-    if (!fileForVerification || !verificationPrivateKeyFile || !verificationPublicKeyFile) {
+    if (!fileForVerification || !verificationPublicKeyFile) {
       console.error('Seleccione los archivos necesarios para la verificación de la firma.');
       return;
     }
@@ -294,52 +246,44 @@ export default function Dashboard() {
       // Decodificar la firma y el texto cifrado
       const decodedSignature = forge.util.decode64(signature);
       const encrypted = forge.util.decode64(encodedEncrypted);
-  
-      // Leer la clave privada para descifrar la aesKey y el IV
-      const privateKeyReader = new FileReader();
-      privateKeyReader.onload = function () {
-        const privateKeyContents = privateKeyReader.result;
-        const privateKey = forge.pki.privateKeyFromPem(privateKeyContents);
+      const privateKeyA = forge.pki.privateKeyFromPem(privateKey);
   
         // Descifrar la aesKey y el IV utilizando RSA
-        const aesKey = privateKey.decrypt(forge.util.decode64(encodedEncryptedAesKey), 'RSA-OAEP');
-        const iv = privateKey.decrypt(forge.util.decode64(encodedEncryptedIV), 'RSA-OAEP');
+      const aesKey = privateKeyA.decrypt(forge.util.decode64(encodedEncryptedAesKey), 'RSA-OAEP');
+      const iv = privateKeyA.decrypt(forge.util.decode64(encodedEncryptedIV), 'RSA-OAEP');
   
         // Crear un descifrador AES en modo CBC
-        const decipher = forge.cipher.createDecipher('AES-CBC', aesKey);
-        decipher.start({ iv });
-        decipher.update(forge.util.createBuffer(encrypted));
-        decipher.finish();
-        const decrypted = decipher.output.getBytes();
+      const decipher = forge.cipher.createDecipher('AES-CBC', aesKey);
+      decipher.start({ iv });
+      decipher.update(forge.util.createBuffer(encrypted));
+      decipher.finish();
+      const decrypted = decipher.output.getBytes();
   
         // Leer la clave pública para la verificación de la firma
-        const publicKeyReader = new FileReader();
-        publicKeyReader.onload = function () {
-          const publicKeyContents = publicKeyReader.result;
-          const publicKey = forge.pki.publicKeyFromPem(publicKeyContents);
+      const publicKeyReader = new FileReader();
+      publicKeyReader.onload = function () {
+        const publicKeyContents = publicKeyReader.result;
+        const publicKey = forge.pki.publicKeyFromPem(publicKeyContents);
   
           // Verificar la firma del contenido descifrado
-          const md = forge.md.sha256.create();
-          md.update(decrypted, 'utf8');
-          const fileHash = md.digest().getBytes();
+        const md = forge.md.sha256.create();
+        md.update(decrypted, 'utf8');
+        const fileHash = md.digest().getBytes();
   
-          try {
-            const isValid = publicKey.verify(fileHash, decodedSignature);
-            console.log('La firma es válida:', isValid);
-            if (isValid) {
-              alert('La firma es válida.');
-            } else {
-              alert('La firma no es válida.');
-            }
-          } catch {
+        try {
+          const isValid = publicKey.verify(fileHash, decodedSignature);
+          console.log('La firma es válida:', isValid);
+          if (isValid) {
+            alert('La firma es válida.');
+          } else {
             alert('La firma no es válida.');
           }
-        };
-  
-        publicKeyReader.readAsText(verificationPublicKeyFile);
+        } catch {
+          alert('La firma no es válida.');
+        }
+
       };
-  
-      privateKeyReader.readAsText(verificationPrivateKeyFile);
+      publicKeyReader.readAsText(verificationPublicKeyFile);
     };
   
     reader.readAsText(fileForVerification);
@@ -447,14 +391,8 @@ export default function Dashboard() {
         </Col>
         <Col>
           <Form.Group controlId="formFile" className="mb-3 keys">
-            <Form.Label>Llave Pública</Form.Label>
+            <Form.Label>Llave Pública del Emisor</Form.Label>
             <Form.Control type="file" onChange={handleVerificationKeySelection} />
-          </Form.Group>
-        </Col>
-        <Col>
-          <Form.Group controlId="formFile" className="mb-3 keys">
-            <Form.Label>Llave Privada del Receptor</Form.Label>
-            <Form.Control type="file" onChange={handleVerificationPrivateKeySelection} />
           </Form.Group>
         </Col>
         <Col className="text-center mb-3 align-middle">
