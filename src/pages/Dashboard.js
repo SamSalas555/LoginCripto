@@ -29,8 +29,10 @@ export default function Dashboard() {
   const [privateKey, setPrivateKey] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [signature, setSignature] = useState('');
+  const [verificationPrivateKeyFile, setVerificationPrivateKeyFile] = useState(null);
   const [verificationPublicKeyFile, setVerificationPublicKeyFile] = useState(null);
   const [fileForVerification, setFileForVerification] = useState(null);
+  const [receiverPublicKeyFile, setReceiverPublicKeyFile] = useState(null);
  
   useEffect(() => {
     // Generar llaves al cargar la página
@@ -124,16 +126,29 @@ export default function Dashboard() {
     console.log('Archivo seleccionado para verificación:', file);
     setFileForVerification(file);
   }
-  
+  // ******************CARGAR LLAVE PUBLICA DEL RECEPTOR PARA RSA********/
+  function handleReceiverPublicKeySelection(event) {
+    const receiverPublicKeyFile = event.target.files[0];
+    setReceiverPublicKeyFile(receiverPublicKeyFile);
+  }
+
   function handleVerificationKeySelection(event) {
     const keyFile = event.target.files[0];
     console.log('Archivo de clave pública seleccionado:', keyFile);
     setVerificationPublicKeyFile(keyFile);
   }
   
+  function handleVerificationPrivateKeySelection(event) {
+    const keyFile = event.target.files[0];
+    setVerificationPrivateKeyFile(keyFile);
+  }
+  function handleVerificationPublicKeySelection(event) {
+    const keyFile = event.target.files[0];
+    setVerificationPublicKeyFile(keyFile);
+  }
 
   function signFile() {
-    if (!selectedFile || !publicKey) {
+    if (!selectedFile || !publicKey || !receiverPublicKeyFile) {
       console.error('Seleccione un archivo y genere una llave primero.');
       return;
     }
@@ -146,20 +161,32 @@ export default function Dashboard() {
       const asKey = forge.random.getBytesSync(16);
       const iv = forge.random.getBytesSync(16);
 
+      // -------------------CIFRAR CON RSA LA LLAVE Y EL VECTOR IV -----------------
+      // Obtener la clave pública del receptor
+      const publicKeyReceiverFileReader = new FileReader();
+      publicKeyReceiverFileReader.onload = function () {
+        const publicKeyReceiverContents = publicKeyReceiverFileReader.result;
+        const publicKeyReceiverObj = forge.pki.publicKeyFromPem(publicKeyReceiverContents);
+
+      // Cifrar la clave AES y el IV con RSA
+        const encryptedAesKey = publicKeyReceiverObj.encrypt(aesKey, 'RSA-OAEP');
+        const encryptedIV = publicKeyReceiverObj.encrypt(iv, 'RSA-OAEP');
+
+
       //Crear el cifrador AES en modo CBC
-      const cipher = forge.cipher.createCipher('AES-CBC', asKey);
-      cipher.start({iv});
-      cipher.update(forge.util.createBuffer(fileContents,'utf8'));
-      cipher.finish();
-      const encrypted = cipher.output.getBytes();
+        const cipher = forge.cipher.createCipher('AES-CBC', asKey);
+        cipher.start({iv});
+        cipher.update(forge.util.createBuffer(fileContents,'utf8'));
+        cipher.finish();
+        const encrypted = cipher.output.getBytes();
 
       //HASH DEL CONTENIDO CIFRADO
-      const privateKeyp = forge.pki.privateKeyFromPem(privateKey);
-      const md = forge.md.sha256.create();
-      md.update(encrypted, 'utf8');
+        const privateKeyp = forge.pki.privateKeyFromPem(privateKey);
+        const md = forge.md.sha256.create();
+        md.update(encrypted, 'utf8');
 
-      //Firmar el contenido cifrado utilizando la clave privada
-      var signature = privateKeyp.sign(md);
+        //Firmar el contenido cifrado utilizando la clave privada
+        var signature = privateKeyp.sign(md);
       // ******************************************************************************
 
      /* //HASH DEL CONTENIDO
@@ -173,28 +200,32 @@ export default function Dashboard() {
       console.log("Digesto: "); //agregar el digesto del contenido
 
       // **************CODIFICAR FIRMA Y EL CONTENIDO CIFRADO ************************
-      signature = forge.util.encode64(signature);
-      const encodedEncrypted = forge.util.encode64(encrypted);
-      // ******************************************************************************
-      //signature = forge.util.encode64(signature);
-      console.log("Firma: " + signature);
-      console.log('tamaño de firma:', signature.length);
-     
-  
-    // Crear un Blob con el contenido original y la firma al final, incluyendo delimitadores
-      const signedContent = encodedEncrypted + "\n" + signature;
-    // const signedContent = fileContents + "\n" + signature;
-      const signedBlob = new Blob([signedContent], { type: 'text/plain' });
-  
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(signedBlob); // Establecer el Blob como el enlace de descarga
-      link.download = 'archivo_firmado_cifrado.txt'; // Nombre del archivo descargado
-      link.click(); // Simular clic en el enlace para descargar
+        signature = forge.util.encode64(signature);
+        const encodedEncrypted = forge.util.encode64(encrypted);
+        const encodedEncryptedAesKey = forge.util.encode64(encryptedAesKey);
+        const encodedEncryptedIV = forge.util.encode64(encryptedIV);
+        // ******************************************************************************
+        //signature = forge.util.encode64(signature);
+        console.log("Firma: " + signature);
+        console.log('tamaño de firma:', signature.length);
+      
+    
+      // Crear un Blob con el contenido original y la firma al final, incluyendo delimitadores
+        const signedContent = encodedEncryptedAesKey + "\n"+encodedEncryptedIV+"\n"+ encodedEncrypted + "\n" + signature;
+      // const signedContent = fileContents + "\n" + signature;
+        const signedBlob = new Blob([signedContent], { type: 'text/plain' });
+    
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(signedBlob); // Establecer el Blob como el enlace de descarga
+        link.download = 'archivo_firmado_cifrado.txt'; // Nombre del archivo descargado
+        link.click(); // Simular clic en el enlace para descargar
+      };
+      publicKeyReceiverFileReader.readAsText(receiverPublicKeyFile);
     };
     reader.readAsText(selectedFile);
   }
 
-  function verifySignature() {
+  /*function verifySignature() {
     if (!fileForVerification || !verificationPublicKeyFile) {
       console.error('Seleccione un archivo y cargue el archivo de llave pública para verificar.');
       return;
@@ -241,7 +272,79 @@ export default function Dashboard() {
       publicKeyReader.readAsText(verificationPublicKeyFile);
     };
     reader.readAsText(fileForVerification);
+  }*/
+  function verifySignature() {
+    if (!fileForVerification || !verificationPrivateKeyFile || !verificationPublicKeyFile) {
+      console.error('Seleccione los archivos necesarios para la verificación de la firma.');
+      return;
+    }
+  
+    const reader = new FileReader();
+    reader.onload = function () {
+      const fileContents = reader.result;
+  
+      // Separar las secciones del archivo cifrado
+      const sections = fileContents.split('\n');
+  
+      const encodedEncryptedAesKey = sections[0];
+      const encodedEncryptedIV = sections[1];
+      const encodedEncrypted = sections[2];
+      const signature = sections[3];
+  
+      // Decodificar la firma y el texto cifrado
+      const decodedSignature = forge.util.decode64(signature);
+      const encrypted = forge.util.decode64(encodedEncrypted);
+  
+      // Leer la clave privada para descifrar la aesKey y el IV
+      const privateKeyReader = new FileReader();
+      privateKeyReader.onload = function () {
+        const privateKeyContents = privateKeyReader.result;
+        const privateKey = forge.pki.privateKeyFromPem(privateKeyContents);
+  
+        // Descifrar la aesKey y el IV utilizando RSA
+        const aesKey = privateKey.decrypt(forge.util.decode64(encodedEncryptedAesKey), 'RSA-OAEP');
+        const iv = privateKey.decrypt(forge.util.decode64(encodedEncryptedIV), 'RSA-OAEP');
+  
+        // Crear un descifrador AES en modo CBC
+        const decipher = forge.cipher.createDecipher('AES-CBC', aesKey);
+        decipher.start({ iv });
+        decipher.update(forge.util.createBuffer(encrypted));
+        decipher.finish();
+        const decrypted = decipher.output.getBytes();
+  
+        // Leer la clave pública para la verificación de la firma
+        const publicKeyReader = new FileReader();
+        publicKeyReader.onload = function () {
+          const publicKeyContents = publicKeyReader.result;
+          const publicKey = forge.pki.publicKeyFromPem(publicKeyContents);
+  
+          // Verificar la firma del contenido descifrado
+          const md = forge.md.sha256.create();
+          md.update(decrypted, 'utf8');
+          const fileHash = md.digest().getBytes();
+  
+          try {
+            const isValid = publicKey.verify(fileHash, decodedSignature);
+            console.log('La firma es válida:', isValid);
+            if (isValid) {
+              alert('La firma es válida.');
+            } else {
+              alert('La firma no es válida.');
+            }
+          } catch {
+            alert('La firma no es válida.');
+          }
+        };
+  
+        publicKeyReader.readAsText(verificationPublicKeyFile);
+      };
+  
+      privateKeyReader.readAsText(verificationPrivateKeyFile);
+    };
+  
+    reader.readAsText(fileForVerification);
   }
+  
   
 
   return (
@@ -307,7 +410,13 @@ export default function Dashboard() {
             <Form.Control type="file" onChange={handleFileSelectionForSigning} />
           </Form.Group>
         </Col>
-        <Col className="text-center">
+        <Col>
+          <Form.Group controlId="formFile" className="mb-3 keys">
+            <Form.Label>Llave Pública del Receptor</Form.Label>
+            <Form.Control type="file" onChange={handleReceiverPublicKeySelection} />
+          </Form.Group>
+        </Col>
+        <Col className="text-center mb-3 align-middle">
           <Button
             type="button"
             className="align-middle buttonssd" 
@@ -342,10 +451,16 @@ export default function Dashboard() {
             <Form.Control type="file" onChange={handleVerificationKeySelection} />
           </Form.Group>
         </Col>
+        <Col>
+          <Form.Group controlId="formFile" className="mb-3 keys">
+            <Form.Label>Llave Privada del Receptor</Form.Label>
+            <Form.Control type="file" onChange={handleVerificationPrivateKeySelection} />
+          </Form.Group>
+        </Col>
         <Col className="text-center mb-3 align-middle">
-          <Button
-          className="align-middle buttonssd" 
-          onClick={verifySignature}>Verificar Firma</Button>
+          <Button className="align-middle buttonssd" onClick={verifySignature}>
+            Verificar Firma
+          </Button>
         </Col>
       </Row>
     </Container>
