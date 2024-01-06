@@ -12,9 +12,6 @@ import  {db} from '../config/firebase'
 // Get a database reference to our blog
 const ref = db.ref('users')
 
-
-
-
 // Asigna los fonts a pdfMake
 pdfMake.vfs = pdfFonts.pdfMake.vfs;
 
@@ -29,7 +26,6 @@ export default function Dashboard() {
   const [privateKey, setPrivateKey] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [signature, setSignature] = useState('');
-  const [verificationPrivateKeyFile, setVerificationPrivateKeyFile] = useState(null);
   const [verificationPublicKeyFile, setVerificationPublicKeyFile] = useState(null);
   const [fileForVerification, setFileForVerification] = useState(null);
   const [receiverPublicKeyFile, setReceiverPublicKeyFile] = useState(null);
@@ -137,11 +133,7 @@ export default function Dashboard() {
     console.log('Archivo de clave pública seleccionado:', keyFile);
     setVerificationPublicKeyFile(keyFile);
   }
-  
-  function handleVerificationPrivateKeySelection(event) {
-    const keyFile = event.target.files[0];
-    setVerificationPrivateKeyFile(keyFile);
-  }
+
   function handleVerificationPublicKeySelection(event) {
     const keyFile = event.target.files[0];
     setVerificationPublicKeyFile(keyFile);
@@ -156,11 +148,12 @@ export default function Dashboard() {
     const reader = new FileReader();
     reader.onload = function () {
       const fileContents = reader.result; //contenido
-     
+      console.log("contenido firma: ", fileContents);
       // ***************Generar una clave AES de 128bits y un IV aleatorio***********
       const asKey = forge.random.getBytesSync(16);
       const iv = forge.random.getBytesSync(16);
-
+      console.log("KEY AES FIRMA: ", asKey);
+      console.log("iv FIRMA: ",iv);
       // -------------------CIFRAR CON RSA LA LLAVE Y EL VECTOR IV -----------------
       // Obtener la clave pública del receptor
       const publicKeyReceiverFileReader = new FileReader();
@@ -172,38 +165,34 @@ export default function Dashboard() {
         const encryptedAesKey = publicKeyReceiverObj.encrypt(asKey, 'RSA-OAEP');
         const encryptedIV = publicKeyReceiverObj.encrypt(iv, 'RSA-OAEP');
 
-
       //Crear el cifrador AES en modo CBC
         const cipher = forge.cipher.createCipher('AES-CBC', asKey);
         cipher.start({iv});
         cipher.update(forge.util.createBuffer(fileContents,'utf8'));
         cipher.finish();
         const encrypted = cipher.output.getBytes();
-
       //HASH DEL CONTENIDO CIFRADO
         const privateKeyp = forge.pki.privateKeyFromPem(privateKey);
         const md = forge.md.sha256.create();
         md.update(encrypted, 'utf8');
+        //md.update(fileContents, 'utf8');
 
         //Firmar el contenido cifrado utilizando la clave privada
         var signature = privateKeyp.sign(md);
       // ******************************************************************************
 
-     /* //HASH DEL CONTENIDO
-      console.log('Clave privada almacenada:', privateKey);
-      const privateKeyp = forge.pki.privateKeyFromPem(privateKey);
-      const md = forge.md.sha256.create();
-      md.update(fileContents, 'utf8');
-      
-      var signature = privateKeyp.sign(md); // Firmar el contenido del archivo*/
-      console.log("Mensaje original: " + fileContents);
-      console.log("Digesto: "); //agregar el digesto del contenido
+      //console.log("Mensaje original: " + fileContents);
+      console.log("Digesto cuando se firma: ", md.digest().toHex()); //agregar el digesto del contenido
 
       // **************CODIFICAR FIRMA Y EL CONTENIDO CIFRADO ************************
         signature = forge.util.encode64(signature);
         const encodedEncrypted = forge.util.encode64(encrypted);
         const encodedEncryptedAesKey = forge.util.encode64(encryptedAesKey);
         const encodedEncryptedIV = forge.util.encode64(encryptedIV);
+        console.log("firma: ", signature);
+        //console.log("Contenido: ", encodedEncrypted);
+        //console.log("AES key firma: ", encodedEncryptedAesKey);
+        //console.log("IV firma: ", encodedEncryptedIV);
         // ******************************************************************************
         //signature = forge.util.encode64(signature);
         console.log("Firma: " + signature);
@@ -242,6 +231,10 @@ export default function Dashboard() {
       const encodedEncryptedIV = sections[1];
       const encodedEncrypted = sections[2];
       const signature = sections[3];
+      /*console.log("firma en verificacion: ", signature);
+      console.log("Contenido verifica: ", encodedEncrypted);
+      console.log("AES key verifica: ", encodedEncryptedAesKey);
+      console.log("IV verifica: ", encodedEncryptedIV);*/
   
       // Decodificar la firma y el texto cifrado
       const decodedSignature = forge.util.decode64(signature);
@@ -251,14 +244,15 @@ export default function Dashboard() {
         // Descifrar la aesKey y el IV utilizando RSA
       const aesKey = privateKeyA.decrypt(forge.util.decode64(encodedEncryptedAesKey), 'RSA-OAEP');
       const iv = privateKeyA.decrypt(forge.util.decode64(encodedEncryptedIV), 'RSA-OAEP');
-  
+      console.log("aes key descifrada: ", aesKey);
+      console.log("iv descrifrada: ", iv);
         // Crear un descifrador AES en modo CBC
       const decipher = forge.cipher.createDecipher('AES-CBC', aesKey);
       decipher.start({ iv });
       decipher.update(forge.util.createBuffer(encrypted));
       decipher.finish();
       const decrypted = decipher.output.getBytes();
-  
+      console.log("contenido descifrada: ", decrypted);
         // Leer la clave pública para la verificación de la firma
       const publicKeyReader = new FileReader();
       publicKeyReader.onload = function () {
@@ -267,8 +261,11 @@ export default function Dashboard() {
   
           // Verificar la firma del contenido descifrado
         const md = forge.md.sha256.create();
-        md.update(decrypted, 'utf8');
+        //modique esto en vez de decrypted para que coincida la hash
+        md.update(encrypted, 'utf8');
         const fileHash = md.digest().getBytes();
+        const decryptedHash = md.digest().toHex();
+        console.log('Digesto del contenido descifrado:', decryptedHash);
   
         try {
           const isValid = publicKey.verify(fileHash, decodedSignature);
