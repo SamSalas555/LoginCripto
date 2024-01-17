@@ -21,9 +21,20 @@ export default function Login() {
       if(!user.emailVerified){
         history.push('/verificar-correo')
       }
-      else{
-        history.push('/dashboard')
+      else {
+        const formData = new FormData();
+        formData.append('uid', user.uid);
+        formData.append('correo', user.email);
+      
+        await fetch('http://localhost:5000/generar_codigo', {
+          method: 'POST',
+          body: formData,
+          mode: 'no-cors', // Ten en cuenta que 'no-cors' puede limitar la visibilidad de la respuesta
+        });
+      
+        history.push('/2FA');
       }
+      
       
     } catch {
       setError('Usuario o contraseña no validas')
